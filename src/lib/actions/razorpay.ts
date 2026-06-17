@@ -140,13 +140,15 @@ export async function verifySubscriptionPayment(
     .eq("id", store.id);
 
   // Update subscription row status
-  await supabase
-    .from("razorpay_subscriptions")
-    .update({
-      status: "authenticated",
-      razorpay_plan_id: payload.razorpay_subscription_id,
-    })
-    .eq("store_id", store.id);
+const { data, error } = await supabase
+  .from("razorpay_subscriptions")
+  .update({
+    status: "authenticated",
+    razorpay_plan_id: payload.razorpay_subscription_id,
+  })
+  .eq("store_id", store.id);
+
+console.log("subscription update", data, error);
 
   revalidatePath("/billing");
   revalidatePath("/upgrade");

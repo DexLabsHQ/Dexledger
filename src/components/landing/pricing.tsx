@@ -20,7 +20,7 @@ const plans = [
   },
   {
     name: "Growth",
-    price: "₹499",
+    price: "₹299",
     period: "per month",
     description: "For established businesses with daily transactions.",
     features: [
