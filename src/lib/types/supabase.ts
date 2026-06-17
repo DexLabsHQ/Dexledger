@@ -1,11 +1,15 @@
-// Hand-written Supabase Database type, mirroring supabase/migrations/0001_init.sql
+// Hand-written Supabase Database type.
+// Mirrors all migrations: 0001_init.sql + 0002_subscriptions.sql + 0003_razorpay_subscriptions.sql
 // Regenerate with `supabase gen types typescript` once the project is linked.
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+export type SubscriptionPlanEnum = "free" | "premium" | "business";
+
 export interface Database {
   public: {
     Tables: {
+      // ── users ──────────────────────────────────────────────────────────────
       users: {
         Row: {
           id: string;
@@ -27,6 +31,8 @@ export interface Database {
         };
         Relationships: [];
       };
+
+      // ── stores ─────────────────────────────────────────────────────────────
       stores: {
         Row: {
           id: string;
@@ -39,9 +45,7 @@ export interface Database {
           credit_enabled: boolean;
           expiry_enabled: boolean;
           onboarding_completed: boolean;
-
-          plan?: "free" | "premium" | "business";
-
+          plan: SubscriptionPlanEnum;       // added by 0002
           created_at: string;
         };
         Insert: {
@@ -55,9 +59,7 @@ export interface Database {
           credit_enabled?: boolean;
           expiry_enabled?: boolean;
           onboarding_completed?: boolean;
-
-          plan?: "free" | "premium" | "business";
-
+          plan?: SubscriptionPlanEnum;
           created_at?: string;
         };
         Update: {
@@ -71,9 +73,7 @@ export interface Database {
           credit_enabled?: boolean;
           expiry_enabled?: boolean;
           onboarding_completed?: boolean;
-
-          plan?: "free" | "premium" | "business";
-
+          plan?: SubscriptionPlanEnum;
           created_at?: string;
         };
         Relationships: [
@@ -86,6 +86,8 @@ export interface Database {
           }
         ];
       };
+
+      // ── products ───────────────────────────────────────────────────────────
       products: {
         Row: {
           id: string;
@@ -97,7 +99,6 @@ export interface Database {
           expiry_date: string | null;
           unit: string | null;
           price: number | null;
-          plan?: "free" | "premium" | "business";
           created_at: string;
           updated_at: string;
         };
@@ -111,7 +112,6 @@ export interface Database {
           expiry_date?: string | null;
           unit?: string | null;
           price?: number | null;
-          plan?: "free" | "premium" | "business";
           created_at?: string;
           updated_at?: string;
         };
@@ -125,7 +125,6 @@ export interface Database {
           expiry_date?: string | null;
           unit?: string | null;
           price?: number | null;
-          plan?: "free" | "premium" | "business";
           created_at?: string;
           updated_at?: string;
         };
@@ -139,6 +138,8 @@ export interface Database {
           }
         ];
       };
+
+      // ── customers ──────────────────────────────────────────────────────────
       customers: {
         Row: {
           id: string;
@@ -174,6 +175,8 @@ export interface Database {
           }
         ];
       };
+
+      // ── ledger_entries ─────────────────────────────────────────────────────
       ledger_entries: {
         Row: {
           id: string;
@@ -219,6 +222,8 @@ export interface Database {
           }
         ];
       };
+
+      // ── activities ─────────────────────────────────────────────────────────
       activities: {
         Row: {
           id: string;
@@ -251,6 +256,8 @@ export interface Database {
           }
         ];
       };
+
+      // ── notification_settings ──────────────────────────────────────────────
       notification_settings: {
         Row: {
           id: string;
@@ -292,7 +299,126 @@ export interface Database {
           }
         ];
       };
+
+      // ── subscription_events ────────────────────────────────────────────────
+      // Added by 0002_subscriptions.sql, extended by 0003_razorpay_subscriptions.sql
+      subscription_events: {
+        Row: {
+          id: string;
+          store_id: string;
+          plan: SubscriptionPlanEnum;
+          source: string;                       // 'manual' | 'razorpay' | 'admin'
+          razorpay_order_id: string | null;     // original 0002 column
+          razorpay_payment_id: string | null;   // original 0002 column
+          razorpay_subscription_id: string | null; // added by 0003
+          razorpay_event_id: string | null;     // added by 0003 — idempotency key (unique)
+          event_type: string | null;            // added by 0003 — e.g. 'subscription.charged'
+          status: string | null;                // added by 0003 — snapshot at event time
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          store_id: string;
+          plan: SubscriptionPlanEnum;
+          source?: string;
+          razorpay_order_id?: string | null;
+          razorpay_payment_id?: string | null;
+          razorpay_subscription_id?: string | null;
+          razorpay_event_id?: string | null;
+          event_type?: string | null;
+          status?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          store_id?: string;
+          plan?: SubscriptionPlanEnum;
+          source?: string;
+          razorpay_order_id?: string | null;
+          razorpay_payment_id?: string | null;
+          razorpay_subscription_id?: string | null;
+          razorpay_event_id?: string | null;
+          event_type?: string | null;
+          status?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "subscription_events_store_id_fkey";
+            columns: ["store_id"];
+            isOneToOne: false;
+            referencedRelation: "stores";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+
+      // ── razorpay_subscriptions ─────────────────────────────────────────────
+      // Added by 0003_razorpay_subscriptions.sql
+      // One active row per store. Tracks live Razorpay subscription state.
+      razorpay_subscriptions: {
+        Row: {
+          id: string;
+          store_id: string;
+          razorpay_subscription_id: string;
+          razorpay_plan_id: string;
+          status: string;
+          // Razorpay statuses: created | authenticated | active | pending
+          //                    | halted | cancelled | completed | expired
+          current_start: string | null;
+          current_end: string | null;
+          charge_at: string | null;
+          total_count: number | null;
+          paid_count: number;
+          remaining_count: number | null;
+          short_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          store_id: string;
+          razorpay_subscription_id: string;
+          razorpay_plan_id: string;
+          status?: string;
+          current_start?: string | null;
+          current_end?: string | null;
+          charge_at?: string | null;
+          total_count?: number | null;
+          paid_count?: number;
+          remaining_count?: number | null;
+          short_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          store_id?: string;
+          razorpay_subscription_id?: string;
+          razorpay_plan_id?: string;
+          status?: string;
+          current_start?: string | null;
+          current_end?: string | null;
+          charge_at?: string | null;
+          total_count?: number | null;
+          paid_count?: number;
+          remaining_count?: number | null;
+          short_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "razorpay_subscriptions_store_id_fkey";
+            columns: ["store_id"];
+            isOneToOne: true;             // unique constraint on store_id
+            referencedRelation: "stores";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
+
     Views: {
       customer_balances: {
         Row: {
@@ -306,6 +432,7 @@ export interface Database {
         Relationships: [];
       };
     };
+
     Functions: {
       get_dashboard_stats: {
         Args: { p_store_id: string };
@@ -316,8 +443,43 @@ export interface Database {
           outstanding_credit: number;
         }[];
       };
+      get_plan_limits: {
+        Args: { p_plan: SubscriptionPlanEnum };
+        Returns: Json;
+      };
+      owns_store: {
+        Args: { p_store_id: string };
+        Returns: boolean;
+      };
     };
-    Enums: Record<string, never>;
+
+    Enums: {
+      subscription_plan: SubscriptionPlanEnum;
+      business_type:
+        | "pharmacy"
+        | "grocery_store"
+        | "hardware_store"
+        | "stationery_shop"
+        | "cement_supplier"
+        | "distributor"
+        | "warehouse"
+        | "other";
+      ledger_entry_type: "purchase" | "payment";
+      activity_type:
+        | "product_added"
+        | "product_updated"
+        | "product_deleted"
+        | "stock_adjusted"
+        | "customer_added"
+        | "customer_updated"
+        | "customer_deleted"
+        | "ledger_purchase"
+        | "ledger_payment"
+        | "report_generated"
+        | "whatsapp_sent"
+        | "settings_updated";
+    };
+
     CompositeTypes: Record<string, never>;
   };
 }

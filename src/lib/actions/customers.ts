@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentStore } from "@/lib/actions/store";
+import { PLAN_LIMITS, type SubscriptionPlan, type LedgerEntryType } from "@/lib/types/database";
+import { isAtLimit } from "@/lib/subscription";
 import type { ActionResult } from "./auth";
-import type { LedgerEntryType } from "@/lib/types/database";
 
 export interface CustomerPayload {
   name: string;
@@ -11,10 +13,36 @@ export interface CustomerPayload {
   notes: string;
 }
 
-export async function createCustomer(storeId: string, payload: CustomerPayload): Promise<ActionResult> {
+export async function createCustomer(
+  storeId: string,
+  payload: CustomerPayload
+): Promise<ActionResult> {
   if (!payload.name.trim()) return { error: "Customer name is required." };
 
   const supabase = await createClient();
+
+  // ── Backend plan limit enforcement ───────────────────────────────────────
+  const store = await getCurrentStore();
+  if (!store || store.id !== storeId) {
+    return { error: "Unauthorized." };
+  }
+
+  const plan = (store.plan ?? "free") as SubscriptionPlan;
+  const limits = PLAN_LIMITS[plan];
+
+  if (limits.max_customers !== -1) {
+    const { count } = await supabase
+      .from("customers")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId);
+
+    if (isAtLimit(count ?? 0, limits.max_customers)) {
+      return {
+        error: `You've reached your ${plan} plan limit of ${limits.max_customers} customers. Upgrade to Pro for unlimited customers.`,
+      };
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const { error } = await supabase.from("customers").insert({
     store_id: storeId,
@@ -67,7 +95,11 @@ export async function updateCustomer(
   return {};
 }
 
-export async function deleteCustomer(storeId: string, customerId: string, customerName: string): Promise<ActionResult> {
+export async function deleteCustomer(
+  storeId: string,
+  customerId: string,
+  customerName: string
+): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -97,7 +129,10 @@ export interface LedgerEntryPayload {
   description: string;
 }
 
-export async function createLedgerEntry(storeId: string, payload: LedgerEntryPayload): Promise<ActionResult> {
+export async function createLedgerEntry(
+  storeId: string,
+  payload: LedgerEntryPayload
+): Promise<ActionResult> {
   if (!payload.customerId) return { error: "Select a customer." };
   if (!payload.amount || payload.amount <= 0) return { error: "Amount must be greater than zero." };
 
@@ -126,7 +161,10 @@ export async function createLedgerEntry(storeId: string, payload: LedgerEntryPay
   return {};
 }
 
-export async function deleteLedgerEntry(storeId: string, entryId: string): Promise<ActionResult> {
+export async function deleteLedgerEntry(
+  storeId: string,
+  entryId: string
+): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { error } = await supabase

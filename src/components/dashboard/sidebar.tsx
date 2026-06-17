@@ -10,6 +10,7 @@ import {
   FileBarChart,
   Settings,
   Home,
+  CreditCard,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarNavLink } from "./sidebar-nav-link";
@@ -17,12 +18,13 @@ import { SignOutButton } from "./sign-out-button";
 import type { StoreRow } from "@/lib/types/database";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/credit", label: "Credit / Udhaar", icon: Wallet },
-  { href: "/reports", label: "Reports", icon: FileBarChart },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard",  label: "Dashboard",       icon: LayoutDashboard },
+  { href: "/inventory",  label: "Inventory",        icon: Package },
+  { href: "/customers",  label: "Customers",        icon: Users },
+  { href: "/credit",     label: "Credit / Udhaar",  icon: Wallet },
+  { href: "/reports",    label: "Reports",          icon: FileBarChart },
+  { href: "/billing",    label: "Billing",          icon: CreditCard },
+  { href: "/settings",   label: "Settings",         icon: Settings },
 ];
 
 export function Sidebar({
@@ -39,7 +41,7 @@ export function Sidebar({
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
-      {/* Logo → /dashboard (logged-in context) */}
+      {/* Logo → /dashboard */}
       <div className="flex h-16 items-center border-b border-border px-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">

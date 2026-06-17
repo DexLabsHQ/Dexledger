@@ -1,5 +1,5 @@
 // Core domain types mirroring the Supabase Postgres schema.
-// Keep in sync with supabase/migrations/*.sql
+// Keep in sync with supabase/migrations/*.sql and src/lib/types/supabase.ts
 
 export type BusinessType =
   | "pharmacy"
@@ -25,6 +25,7 @@ export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
 export type LedgerEntryType = "purchase" | "payment";
 
 // ── Subscription ──────────────────────────────────────────────────────────────
+
 export type SubscriptionPlan = "free" | "premium" | "business";
 
 export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
@@ -90,7 +91,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   },
 };
 
-// ── Rows ─────────────────────────────────────────────────────────────────────
+// ── Table rows ────────────────────────────────────────────────────────────────
 
 export interface UserRow {
   id: string;
@@ -110,7 +111,7 @@ export interface StoreRow {
   credit_enabled: boolean;
   expiry_enabled: boolean;
   onboarding_completed: boolean;
-  plan: SubscriptionPlan;            // ← NEW
+  plan: SubscriptionPlan;
   created_at: string;
 }
 
@@ -169,14 +170,48 @@ export interface ActivityRow {
   created_at: string;
 }
 
+/**
+ * subscription_events
+ * Append-only audit log of plan changes and Razorpay webhook events.
+ * Columns from 0002_subscriptions.sql + extensions from 0003_razorpay_subscriptions.sql.
+ */
 export interface SubscriptionEventRow {
   id: string;
   store_id: string;
   plan: SubscriptionPlan;
-  source: string;
-  razorpay_order_id: string | null;
-  razorpay_payment_id: string | null;
+  source: string;                         // 'manual' | 'razorpay' | 'admin'
+  razorpay_order_id: string | null;       // original 0002 column
+  razorpay_payment_id: string | null;     // original 0002 column
+  razorpay_subscription_id: string | null; // added by 0003
+  razorpay_event_id: string | null;       // added by 0003 — idempotency key (unique)
+  event_type: string | null;              // added by 0003 — e.g. 'subscription.charged'
+  status: string | null;                  // added by 0003 — status snapshot at event time
   created_at: string;
+}
+
+/**
+ * razorpay_subscriptions
+ * One row per store (unique on store_id). Tracks the live Razorpay
+ * subscription object. Written only by the webhook handler via service role.
+ * Added by 0003_razorpay_subscriptions.sql.
+ */
+export interface RazorpaySubscriptionRow {
+  id: string;
+  store_id: string;
+  razorpay_subscription_id: string;
+  razorpay_plan_id: string;
+  status: string;
+  // Razorpay subscription statuses:
+  // created | authenticated | active | pending | halted | cancelled | completed | expired
+  current_start: string | null;     // ISO timestamp of current billing period start
+  current_end: string | null;       // ISO timestamp of current billing period end
+  charge_at: string | null;         // ISO timestamp of next charge
+  total_count: number | null;
+  paid_count: number;
+  remaining_count: number | null;
+  short_url: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Derived / computed view models ───────────────────────────────────────────

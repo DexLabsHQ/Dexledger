@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentStore } from "@/lib/actions/store";
+import { PLAN_LIMITS, type SubscriptionPlan } from "@/lib/types/database";
+import { isAtLimit } from "@/lib/subscription";
 import type { ActionResult } from "./auth";
 
 export interface ProductPayload {
@@ -14,10 +17,36 @@ export interface ProductPayload {
   price: number | null;
 }
 
-export async function createProduct(storeId: string, payload: ProductPayload): Promise<ActionResult> {
+export async function createProduct(
+  storeId: string,
+  payload: ProductPayload
+): Promise<ActionResult> {
   if (!payload.name.trim()) return { error: "Product name is required." };
 
   const supabase = await createClient();
+
+  // ── Backend plan limit enforcement ───────────────────────────────────────
+  const store = await getCurrentStore();
+  if (!store || store.id !== storeId) {
+    return { error: "Unauthorized." };
+  }
+
+  const plan = (store.plan ?? "free") as SubscriptionPlan;
+  const limits = PLAN_LIMITS[plan];
+
+  if (limits.max_products !== -1) {
+    const { count } = await supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId);
+
+    if (isAtLimit(count ?? 0, limits.max_products)) {
+      return {
+        error: `You've reached your ${plan} plan limit of ${limits.max_products} products. Upgrade to Pro for unlimited products.`,
+      };
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const { error } = await supabase.from("products").insert({
     store_id: storeId,
@@ -79,7 +108,11 @@ export async function updateProduct(
   return {};
 }
 
-export async function deleteProduct(storeId: string, productId: string, productName: string): Promise<ActionResult> {
+export async function deleteProduct(
+  storeId: string,
+  productId: string,
+  productName: string
+): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { error } = await supabase
